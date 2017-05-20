@@ -95,23 +95,33 @@ category_dict = {
     "POP MUSIC":            "MUSIC"
 }
 
-count = 0
-jeopard = []
-for q in data:
-    if q["category"] in category_dict:
-        q["category"] = category_dict[q["category"]]
-        jeopard.append(q)
-        count += 1
+initial_dataset_cnt = 0;
+initial_categories_set = set()
 
-pprint(count)
+for question in data:
+    initial_dataset_cnt += 1
+    initial_categories_set.add(question["category"])
 
-categories = []
-for q in data:
-    categories.append(q["category"])
+print("# questions in initial dataset: {}".format(initial_dataset_cnt))
+print("# categories in initial dataset: {}".format(len(initial_categories_set)))
 
-with open('jeopardy.json', 'w') as outfile:
-    json.dump(jeopard, outfile)
+# dataset_cnt = 0
+# jeopard = []
+# for q in data:
+#     if q["category"] in category_dict:
+#         q["category"] = category_dict[q["category"]]
+#         jeopard.append(q)
+#         count += 1
 
-pprint(jeopard)
+# pprint(count)
+
+# categories = []
+# for q in data:
+#     categories.append(q["category"])
+
+# with open('jeopardy.json', 'w') as outfile:
+#     json.dump(jeopard, outfile)
+
+# pprint(jeopard)
 
 # pprint(Counter(categories).most_common(10))
