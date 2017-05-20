@@ -1,6 +1,25 @@
 import json
+import string
+import re
+import nltk
 from pprint import pprint
 from collections import Counter
+from nltk.corpus import stopwords
+from nltk.stem.porter import *
+
+number_regex = re.compile(r'^\d+$')
+html_tags_regex = re.compile(r'<.+>')
+
+def remove_special_chars(s):
+    # replace more than one characters
+    s = s.replace('\'s', '').replace('-', ' ')
+
+    # remove all punctuation
+    # !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+    translation = str.maketrans('', '', string.punctuation)
+
+    return s.translate(translation)
+
 
 with open('JEOPARDY_QUESTIONS1.json') as infile:
     data = json.load(infile)
@@ -105,23 +124,40 @@ for question in data:
 print("# questions in initial dataset: {}".format(initial_dataset_cnt))
 print("# categories in initial dataset: {}".format(len(initial_categories_set)))
 
-# dataset_cnt = 0
-# jeopard = []
-# for q in data:
-#     if q["category"] in category_dict:
-#         q["category"] = category_dict[q["category"]]
-#         jeopard.append(q)
-#         count += 1
+stemmer = PorterStemmer()
+stopWords = set(stopwords.words('english'))
 
-# pprint(count)
+dataset_cnt = 0
+questions_lst = []
+for question in data:
+    if question["category"] in category_dict:
+        q = question["question"]
+        q = q.lower()
+        q = html_tags_regex.sub('', q)
+        q = remove_special_chars(q)
+        words_lst = nltk.word_tokenize(q)
+        words_lst = [stemmer.stem(word) for word in words_lst if (not number_regex.match(word) and word not in stopWords)]
+        question["question"] = ' '.join(words_lst)
 
-# categories = []
-# for q in data:
-#     categories.append(q["category"])
+        question["category"] = category_dict[question["category"]]
 
-# with open('jeopardy.json', 'w') as outfile:
-#     json.dump(jeopard, outfile)
+        questions_lst.append(question)
+        dataset_cnt += 1
 
-# pprint(jeopard)
+print("# questions in trimmed dataset: {}".format(dataset_cnt))
+print("# categories in trimmed dataset: {}".format(10))
 
-# pprint(Counter(categories).most_common(10))
+questions_per_category = Counter(question["category"] for question in questions_lst)
+print("# questions per category:")
+pprint(questions_per_category)
+
+words_and_freq = Counter()
+for question in questions_lst:
+    print('Q: {}\nA: {}\n'.format(question['question'], question['category']))
+    words_and_freq.update(Counter(question['question'].split(' ')))
+
+print("# words: {}".format(len(words_and_freq)))
+# pprint(words_and_freq)
+
+with open('jeopardy.json', 'w') as outfile:
+    json.dump(questions_lst, outfile)
