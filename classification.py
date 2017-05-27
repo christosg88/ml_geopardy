@@ -60,6 +60,16 @@ for i in range(10):
     train_target_lst.extend([i] * train_len)
     test_target_lst.extend([i] * (length - train_len))
 
+# vectorizer:
+# a vectorizer will create the vocabulary vectors. It will also ignore words that appear in only one document. The
+# vocabulary is a count matrix of type scipy sparse csr, which has the number of occurrences of the j-th word at the
+# i-th document stored at vocab[i][j]
+# tf_idf_trans:
+# transforms the vocabulary from a count matrix to a normalized tf-idf representation. Tf means term-frequency while
+# tf-idf means term-frequency times inverse document-frequency. The goal of using tf-idf instead of the raw
+# frequencies of occurrence of a token in a given document is to scale down the impact of tokens that occur very
+# frequently in a given corpus and that are hence empirically less informative than features that occur in a small
+# fraction of the training corpus.
 trans_pipe = Pipeline([("vectorizer", CountVectorizer(min_df=2)),
                        ("tf_idf_trans", TfidfTransformer())])
 
