@@ -14,6 +14,11 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.naive_bayes import MultinomialNB
 
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+
 def cat_str2int(cat):
     if cat == 'SCIENCE & NATURE':   return 1
     elif cat == 'LITERATURE':       return 2
@@ -76,6 +81,23 @@ text_clf = text_clf.fit(train_questions_lst, train_targets_lst)
 predicted = text_clf.predict(test_questions_lst)
 
 print(np.mean(predicted == test_targets_lst))
+
+#accuracy
+accuracy = accuracy_score(test_targets_lst,predicted)
+print(['Accuracy: ' + str(accuracy)])
+
+#precision
+precision = precision_score(test_targets_lst,predicted,average = 'macro')
+print(['Precision: ' + str(precision)])
+
+#recall
+recall = recall_score(test_targets_lst,predicted,average = 'macro')
+print(['Recall: ' + str(recall)])
+
+#F1 score
+f1_score = f1_score(test_targets_lst,predicted,average = 'macro')
+print(['F1 score: ' + str(f1_score)])
+
 
 # stemmer = PorterStemmer()
 # stopWords = set(stopwords.words('english'))
