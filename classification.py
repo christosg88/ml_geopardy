@@ -8,6 +8,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
 
@@ -59,31 +60,23 @@ for i in range(10):
     train_target_lst.extend([i] * train_len)
     test_target_lst.extend([i] * (length - train_len))
 
-# create a vectorizer that will create the vocabulary vectors. Ignore words that appear in only one document
-vectorizer = CountVectorizer(min_df=2)
-# vocab: A count matrix of type scipy sparse csr, with has the number of occurrences of the j-th word at the i-th
-# document at vocab[i][j]
-#   [n_samples  x  ~n_features]
-vocab_train = vectorizer.fit_transform(train_quest_lst)
-vocab_test = vectorizer.transform(test_quest_lst)
-# transform the vocabulary from a count matrix to a normalized tf-idf representation. Tf means term-frequency while
-# tf-idf means term-frequency times inverse document-frequency. The goal of using tf-idf instead of the raw
-# frequencies of occurrence of a token in a given document is to scale down the impact of tokens that occur very
-# frequently in a given corpus and that are hence empirically less informative than features that occur in a small
-# fraction of the training corpus.
-tf_idf_transformer = TfidfTransformer()
-tf_idf_train = tf_idf_transformer.fit_transform(vocab_train)
-tf_idf_test = tf_idf_transformer.transform(vocab_test)
+trans_pipe = Pipeline([("vectorizer", CountVectorizer(min_df=2)),
+                       ("tf_idf_trans", TfidfTransformer())])
+
+trans_pipe.fit(train_quest_lst, train_target_lst)
+
+train_transformed = trans_pipe.transform(train_quest_lst)
+test_transformed = trans_pipe.transform(test_quest_lst)
 
 # Naive Bayes classifier for multinomial models
 clf_nb = MultinomialNB()
-clf_nb.fit(tf_idf_train, train_target_lst)
-predicted_nb = clf_nb.predict(tf_idf_test)
+clf_nb.fit(train_transformed.toarray(), train_target_lst)
+predicted_nb = clf_nb.predict(test_transformed.toarray())
 
 # Linear Support Vector Classifier
 clf_svm = LinearSVC()
-clf_svm.fit(tf_idf_train, train_target_lst)
-predicted_svm = clf_svm.predict(tf_idf_test)
+clf_svm.fit(train_transformed, train_target_lst)
+predicted_svm = clf_svm.predict(test_transformed)
 
 # accuracy
 accuracy_nb = accuracy_score(test_target_lst, predicted_nb)
