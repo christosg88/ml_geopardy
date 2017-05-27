@@ -1,19 +1,17 @@
 import json
-import numpy as np
+import re
 import string
 from random import shuffle
-import re
 
-from sklearn.pipeline import Pipeline
+from sklearn import svm
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn import svm
-
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
-from sklearn.metrics import f1_score
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
 
 
 def cat_str2int(cat):
@@ -76,7 +74,7 @@ def remove_special_chars(s):
 number_regex = re.compile(r'^\d+$')
 html_tags_regex = re.compile(r'<.+>')
 
-with open('../jeopardy.json') as infile:
+with open('jeopardy.json') as infile:
     data = json.load(infile)
 
 # for question in data:
