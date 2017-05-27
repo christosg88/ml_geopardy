@@ -1,14 +1,10 @@
 import json
 import string
-import re
-import nltk
-from pprint import pprint
 from collections import Counter
+
+import nltk
 from nltk.corpus import stopwords
 from nltk.stem.porter import *
-
-number_regex = re.compile(r'^\d+$')
-html_tags_regex = re.compile(r'<.+>')
 
 
 def remove_special_chars(s):
@@ -21,6 +17,9 @@ def remove_special_chars(s):
 
     return s.translate(translation)
 
+
+includes_number_regex = re.compile(r'\d+')
+html_tags_regex = re.compile(r'<.+>')
 
 with open('JEOPARDY_QUESTIONS1.json') as infile:
     data = json.load(infile)
@@ -115,21 +114,25 @@ category_dict = {
     "POP MUSIC": "MUSIC"
 }
 
-initial_dataset_cnt = 0;
-initial_categories_set = set()
+init_quest_cnt = 0
+init_cat = Counter()
 
 for question in data:
-    initial_dataset_cnt += 1
-    initial_categories_set.add(question["category"])
+    init_quest_cnt += 1
+    init_cat.update([question["category"]])
 
-print("# questions in initial dataset: {}".format(initial_dataset_cnt))
-print("# categories in initial dataset: {}".format(len(initial_categories_set)))
+print("# QUESTIONS IN INITIAL DATASET: {}\n".format(init_quest_cnt))
+print("# CATEGORIES IN INITIAL DATASET: {}\n".format(len(init_cat)))
+print("MOST COMMON CATEGORIES WITH NUMBER OF QUESTIONS:")
+for cat, num_quest in init_cat.most_common(10):
+    print("Category: {}\nQuestions: {}\n".format(cat, num_quest))
+print("================================================================================")
 
 stemmer = PorterStemmer()
-stopWords = set(stopwords.words('english'))
+stopWords = stopwords.words('english')
 
-dataset_cnt = 0
-questions_lst = []
+quest_lst = []
+words_and_freq = Counter()
 for question in data:
     if question["category"] in category_dict:
         q = question["question"]
@@ -137,29 +140,25 @@ for question in data:
         q = html_tags_regex.sub('', q)
         q = remove_special_chars(q)
         words_lst = nltk.word_tokenize(q)
-        words_lst = [stemmer.stem(word) for word in words_lst if
-                     (not number_regex.match(word) and word not in stopWords)]
-        question["question"] = ' '.join(words_lst)
 
-        question["category"] = category_dict[question["category"]]
+        words_lst = [stemmer.stem(word)
+                     for word in words_lst
+                     if word not in stopWords and not includes_number_regex.match(word)]
 
-        questions_lst.append(question)
-        dataset_cnt += 1
+        words_and_freq.update(words_lst)
 
-print("# questions in trimmed dataset: {}".format(dataset_cnt))
-print("# categories in trimmed dataset: {}".format(10))
+        quest_lst.append({"question": ' '.join(words_lst), "category": category_dict[question["category"]]})
 
-questions_per_category = Counter(question["category"] for question in questions_lst)
-print("# questions per category:")
-pprint(questions_per_category)
+trimmed_cat = Counter(quest["category"] for quest in quest_lst)
 
-words_and_freq = Counter()
-for question in questions_lst:
-    print('Q: {}\nA: {}\n'.format(question['question'], question['category']))
-    words_and_freq.update(Counter(question['question'].split(' ')))
+print("# QUESTIONS IN TRIMMED DATASET: {}\n".format(len(quest_lst)))
+print("# CATEGORIES IN TRIMMED DATASET: {}\n".format(10))
+print("MOST COMMON CATEGORIES WITH NUMBER OF QUESTIONS:")
+for cat, num_quest in trimmed_cat.most_common(10):
+    print("Category: {}\nQuestions: {}\n".format(cat, num_quest))
+print("================================================================================")
 
-print("# words: {}".format(len(words_and_freq)))
-# pprint(words_and_freq)
+print("# WORDS IN TRIMMED DATASET: {}\n".format(len(words_and_freq)))
 
 with open('jeopardy.json', 'w') as outfile:
-    json.dump(questions_lst, outfile)
+    json.dump(quest_lst, outfile)

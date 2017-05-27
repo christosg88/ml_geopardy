@@ -1,9 +1,6 @@
 import json
-import re
-import string
 from random import shuffle
 
-from sklearn import svm
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics import accuracy_score
@@ -11,7 +8,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import Pipeline
+from sklearn.svm import LinearSVC
 
 
 def cat_str2int(cat):
@@ -37,111 +34,81 @@ def cat_str2int(cat):
         return 9
 
 
-def cat_int2str(cat):
-    if cat == 0:
-        return 'SCIENCE & NATURE'
-    elif cat == 1:
-        return 'LITERATURE'
-    elif cat == 2:
-        return 'HISTORY'
-    elif cat == 3:
-        return 'GRAMMAR'
-    elif cat == 4:
-        return 'SPORTS'
-    elif cat == 5:
-        return 'GEOGRAPHY'
-    elif cat == 6:
-        return 'PEOPLE'
-    elif cat == 7:
-        return 'ART'
-    elif cat == 8:
-        return 'FOOD'
-    elif cat == 9:
-        return 'MUSIC'
-
-
-def remove_special_chars(s):
-    # replace more than one characters
-    s = s.replace('\'s', '').replace('-', ' ')
-
-    # remove all punctuation
-    # !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-    translation = str.maketrans('', '', string.punctuation)
-
-    return s.translate(translation)
-
-
-number_regex = re.compile(r'^\d+$')
-html_tags_regex = re.compile(r'<.+>')
-
 with open('jeopardy.json') as infile:
     data = json.load(infile)
 
-# for question in data:
-#     print('Q: {}\nC: {}\n'.format(question['question'], question['category']))
-
-text_clf_nb = Pipeline([
-    ('vectorizer', CountVectorizer()),
-    ('tfidf', TfidfTransformer()),
-    ('clf', MultinomialNB()),
-])
-
-text_clf_svm = Pipeline([
-    ('vectorizer', CountVectorizer()),
-    ('tfidf', TfidfTransformer()),
-    ('clf', svm.LinearSVC()),
-])
-
+# shuffle the data so we get different training and test sets for every run
 shuffle(data)
 
-questions_per_cat = [[] for i in range(10)]
-for question in data:
-    questions_per_cat[cat_str2int(question["category"])].append(question["question"])
+# separate the questions to their categories
+quest_per_cat = [[] for i in range(10)]
+for quest in data:
+    quest_per_cat[cat_str2int(quest["category"])].append(quest["question"])
 
-train_questions_lst = []
-train_targets_lst = []
-test_questions_lst = []
-test_targets_lst = []
+train_quest_lst = []
+train_target_lst = []
+test_quest_lst = []
+test_target_lst = []
 
+# separate the questions for each category in training set (80%) and test set(20%)
 for i in range(10):
-    length = len(questions_per_cat[i])
+    length = len(quest_per_cat[i])
     train_len = int(length * 0.8)
-    test_len = length - train_len
-    train_questions_lst.extend(question for question in questions_per_cat[i][:train_len])
-    test_questions_lst.extend(questions_per_cat[i][train_len:])
-    train_targets_lst.extend(i for l in range(train_len))
-    test_targets_lst.extend(i for l in range(test_len))
+    train_quest_lst.extend(question for question in quest_per_cat[i][:train_len])
+    test_quest_lst.extend(quest_per_cat[i][train_len:])
+    train_target_lst.extend([i] * train_len)
+    test_target_lst.extend([i] * (length - train_len))
 
-text_clf_nb = text_clf_nb.fit(train_questions_lst, train_targets_lst)
-predicted_nb = text_clf_nb.predict(test_questions_lst)
+# create a vectorizer that will create the vocabulary vectors. Ignore words that appear in only one document
+vectorizer = CountVectorizer(min_df=2)
+# vocab: A count matrix of type scipy sparse csr, with has the number of occurrences of the j-th word at the i-th
+# document at vocab[i][j]
+#   [n_samples  x  ~n_features]
+vocab_train = vectorizer.fit_transform(train_quest_lst)
+vocab_test = vectorizer.transform(test_quest_lst)
+# transform the vocabulary from a count matrix to a normalized tf-idf representation. Tf means term-frequency while
+# tf-idf means term-frequency times inverse document-frequency. The goal of using tf-idf instead of the raw
+# frequencies of occurrence of a token in a given document is to scale down the impact of tokens that occur very
+# frequently in a given corpus and that are hence empirically less informative than features that occur in a small
+# fraction of the training corpus.
+tf_idf_transformer = TfidfTransformer()
+tf_idf_train = tf_idf_transformer.fit_transform(vocab_train)
+tf_idf_test = tf_idf_transformer.transform(vocab_test)
 
-text_clf_svm = text_clf_svm.fit(train_questions_lst, train_targets_lst)
-predicted_svm = text_clf_svm.predict(test_questions_lst)
+# Naive Bayes classifier for multinomial models
+clf_nb = MultinomialNB()
+clf_nb.fit(tf_idf_train, train_target_lst)
+predicted_nb = clf_nb.predict(tf_idf_test)
+
+# Linear Support Vector Classifier
+clf_svm = LinearSVC()
+clf_svm.fit(tf_idf_train, train_target_lst)
+predicted_svm = clf_svm.predict(tf_idf_test)
 
 # accuracy
-accuracy_nb = accuracy_score(test_targets_lst, predicted_nb)
-print('Accuracy NB: {}'.format(accuracy_nb))
+accuracy_nb = accuracy_score(test_target_lst, predicted_nb)
+print('Accuracy NB: {:.1f}%'.format(accuracy_nb * 100))
 # accuracy
-accuracy_svm = accuracy_score(test_targets_lst, predicted_svm)
-print('Accuracy SVM: {}\n'.format(accuracy_svm))
+accuracy_svm = accuracy_score(test_target_lst, predicted_svm)
+print('Accuracy SVM: {:.1f}%\n'.format(accuracy_svm * 100))
 
 # precision
-precision_nb = precision_score(test_targets_lst, predicted_nb, average='macro')
-print('Precision NB: {}'.format(precision_nb))
+precision_nb = precision_score(test_target_lst, predicted_nb, average='macro')
+print('Precision NB: {:.1f}%'.format(precision_nb * 100))
 # precision
-precision_svm = precision_score(test_targets_lst, predicted_svm, average='macro')
-print('Precision SVM: {}\n'.format(precision_svm))
+precision_svm = precision_score(test_target_lst, predicted_svm, average='macro')
+print('Precision SVM: {:.1f}%\n'.format(precision_svm * 100))
 
 # recall
-recall_nb = recall_score(test_targets_lst, predicted_nb, average='macro')
-print('Recall NB: {}'.format(recall_nb))
+recall_nb = recall_score(test_target_lst, predicted_nb, average='macro')
+print('Recall NB: {:.1f}%'.format(recall_nb * 100))
 # recall
-recall_svm = recall_score(test_targets_lst, predicted_svm, average='macro')
-print('Recall SVM: {}\n'.format(recall_svm))
+recall_svm = recall_score(test_target_lst, predicted_svm, average='macro')
+print('Recall SVM: {:.1f}%\n'.format(recall_svm * 100))
 
 # F1 score
-f1_score_nb = f1_score(test_targets_lst, predicted_nb, average='macro')
-print('F1 score NB: {}'.format(f1_score_nb))
+f1_score_nb = f1_score(test_target_lst, predicted_nb, average='macro')
+print('F1 score NB: {:.1f}%'.format(f1_score_nb * 100))
 # F1 score
-f1_score_svm = f1_score(test_targets_lst, predicted_svm, average='macro')
-print('F1 score SVM: {}'.format(f1_score_svm))
+f1_score_svm = f1_score(test_target_lst, predicted_svm, average='macro')
+print('F1 score SVM: {:.1f}%'.format(f1_score_svm * 100))
