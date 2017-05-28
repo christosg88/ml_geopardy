@@ -1,4 +1,5 @@
 import json
+from time import time
 
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
@@ -8,6 +9,10 @@ from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import completeness_score
 from sklearn.metrics import homogeneity_score
 from sklearn.metrics import v_measure_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import Normalizer
+from tabulate import tabulate
+import numpy as np
 
 
 def cat_str2int(cat):
@@ -33,120 +38,80 @@ def cat_str2int(cat):
         return 9
 
 
-def cat_int2str(cat):
-    if cat == 0:
-        return 'SCIENCE & NATURE'
-    elif cat == 1:
-        return 'LITERATURE'
-    elif cat == 2:
-        return 'HISTORY'
-    elif cat == 3:
-        return 'GRAMMAR'
-    elif cat == 4:
-        return 'SPORTS'
-    elif cat == 5:
-        return 'GEOGRAPHY'
-    elif cat == 6:
-        return 'PEOPLE'
-    elif cat == 7:
-        return 'ART'
-    elif cat == 8:
-        return 'FOOD'
-    elif cat == 9:
-        return 'MUSIC'
+if __name__ == "__main__":
+    with open('jeopardy.json') as infile:
+        data = json.load(infile)
 
+    # separate the questions to their categories and also merge all questions in a list
+    quest_per_cat = [[] for i in range(10)]
+    quest_lst = []
+    cat_true = []
+    for quest in data:
+        # quest_per_cat[cat_str2int(quest["category"])].append(quest["question"])
+        quest_lst.append(quest["question"])
+        quest_lst.append(" ".join([quest["question"], quest["category"]]))
+        cat_true.append(cat_str2int(quest["category"]))
 
-with open('jeopardy.json') as infile:
-    data = json.load(infile)
+    # vectorizer:
+    # a vectorizer will create the vocabulary vectors. It will also ignore words that appear in only one document. The
+    # vocabulary is a count matrix of type scipy sparse csr, which has the number of occurrences of the j-th word at the
+    # i-th document stored at vocab[i][j]
+    # tf_idf_trans:
+    # transforms the vocabulary from a count matrix to a normalized tf-idf representation. Tf means term-frequency while
+    # tf-idf means term-frequency times inverse document-frequency. The goal of using tf-idf instead of the raw
+    # frequencies of occurrence of a token in a given document is to scale down the impact of tokens that occur very
+    # frequently in a given corpus and that are hence empirically less informative than features that occur in a small
+    # fraction of the training corpus.
+    trans_pipe = Pipeline([("vectorizer", CountVectorizer(min_df=2)),
+                           ("tf_idf_trans", TfidfTransformer()),
+                           ("normalizer", Normalizer(copy=False))])
 
-quest_lst = []
-cat_true = []
-for quest in data:
-    quest_lst.append(quest["question"])
-    cat_true.append(cat_str2int(quest["category"]))
+    # transform the whole dataset and fit the transformation pipe to it
+    t0 = time()
+    trans_pipe.fit(quest_lst)
+    train_transformed = trans_pipe.transform(quest_lst)
+    t1 = time()
+    print("Data transformed in {:.2f}s".format(t1 - t0))
 
-# create a vectorizer that will create the vocabulary vectors. Ignore words that appear in only one document
-vectorizer = CountVectorizer(min_df=2)
-# vocab: A count matrix of type scipy sparse csr, with has the number of occurrences of the j-th word at the i-th
-# document at vocab[i][j]
-#   [n_samples  x  ~n_features]
-vocab = vectorizer.fit_transform(quest_lst)
-# transform the vocabulary from a count matrix to a normalized tf-idf representation. Tf means term-frequency while
-# tf-idf means term-frequency times inverse document-frequency. The goal of using tf-idf instead of the raw
-# frequencies of occurrence of a token in a given document is to scale down the impact of tokens that occur very
-# frequently in a given corpus and that are hence empirically less informative than features that occur in a small
-# fraction of the training corpus.
-tf_idf_transformer = TfidfTransformer()
-tf_idf = tf_idf_transformer.fit_transform(vocab)
+    # find the cluster center for each category to help KMeans
+    print("\nFinding cluster center per category.")
+    cluster_center_per_cat = np.empty((0, train_transformed.shape[1]))
+    for cat in range(10):
+        print("Category {}".format(cat))
+        transformed = trans_pipe.transform(quest_per_cat[cat])
+        clust_km = KMeans(n_clusters=1, n_init=20, n_jobs=-1)
+        clust_km.fit(transformed)
+        cluster_center_per_cat = np.append(cluster_center_per_cat, clust_km.cluster_centers_, axis=0)
 
-# print("[!] Performing dimensionality reduction using LSA")
-# # Vectorizer results are normalized, which makes KMeans behave as spherical k-means for better results. Since LSA/SVD
-# #  results are not normalized, we have to redo the normalization.
-# svd = TruncatedSVD(200)
-# normalizer = Normalizer(copy=False)
-# lsa = make_pipeline(svd, normalizer)
-#
-# X = lsa.fit_transform(X)
-# t3 = time()
-# print("Reduced dimensions in {:.2f}s".format(t3 - t2))
+    clust_km = KMeans(n_clusters=10, n_init=1, init=cluster_center_per_cat)
+    clust_km.fit(train_transformed)
+    t2 = time()
+    print("\nKMeans fit the data in {:.2f}s".format(t2 - t1))
 
-km = KMeans(n_clusters=2, n_jobs=1)
-km.fit(X)
-#
-# em = GaussianMixture(n_components=10)
-# em.fit(X.toarray())
+    cat_km = clust_km.predict(train_transformed)
+    t3 = time()
+    print("KMeans predicted the categories in {:.2f}s".format(t3 - t2))
 
-labels_pred_km = km.predict(X)
-# labels_pred_em = em.predict(X)
+    results = []
+    # adjusted rand score
+    adjusted_rand_score_km = adjusted_rand_score(cat_km, cat_true)
+    results.append(["Adjusted Rand Score KMeans", "{:.1f}".format(adjusted_rand_score_km * 100)])
 
-# original_space_centroids = svd.inverse_transform(km.cluster_centers_)
-# order_centroids = original_space_centroids.argsort()[:, ::-1]
-order_centroids = km.cluster_centers_.argsort()[:, ::-1]
+    # adjusted mutual info score
+    adjusted_mutual_info_score_km = adjusted_mutual_info_score(cat_km, cat_true)
+    results.append(["Adjusted mutual info score KMeans", "{:.1f}".format(adjusted_mutual_info_score_km * 100)])
 
-terms = vec.get_feature_names()
-for i in range(2):
-    print("Cluster %d:" % i, end="")
-    for ind in order_centroids[i, :10]:
-        print(" %s" % terms[ind], end="")
+    # homogeneity score
+    homogeneity_score_km = homogeneity_score(cat_km, cat_true)
+    results.append(["Homogeneity score KMeans", "{:.1f}".format(homogeneity_score_km * 100)])
+
+    # completeness score
+    completeness_score_km = completeness_score(cat_km, cat_true)
+    results.append(["Completeness score KMeans", "{:.1f}".format(completeness_score_km * 100)])
+
+    # v measure score
+    v_measure_score_km = v_measure_score(cat_km, cat_true)
+    results.append(["V measure score KMeans", "{:.1f}".format(v_measure_score_km * 100)])
+
     print()
-print()
-
-# adjusted rand score
-adjusted_rand_score_km = adjusted_rand_score(labels_pred_km, labels_true)
-print('Adjusted Rand Score KMeans: {}'.format(adjusted_rand_score_km))
-
-# adjusted rand score
-# adjusted_rand_score_em = adjusted_rand_score(labels_pred_em, labels_true)
-# print('Adjusted Rand Score Expectation Maximization: {}\n'.format(adjusted_rand_score_em))
-
-# adjusted mutual info score
-adjusted_mutual_info_score_km = adjusted_mutual_info_score(labels_pred_km, labels_true)
-print('Adjusted mutual info score KMeans: {}'.format(adjusted_mutual_info_score_km))
-
-# adjusted mutual info score
-# adjusted_mutual_info_score_em = adjusted_mutual_info_score(labels_pred_em, labels_true)
-# print('Adjusted mutual info score Expectation Maximization: {}\n'.format(adjusted_mutual_info_score_em))
-
-# homogeneity score
-homogeneity_score_km = homogeneity_score(labels_pred_km, labels_true)
-print('Homogeneity score KMeans: {}'.format(homogeneity_score_km))
-
-# homogeneity score
-# homogeneity_score_em = homogeneity_score(labels_pred_em, labels_true)
-# print('Homogeneity score Expectation Maximization: {}\n'.format(homogeneity_score_em))
-
-# completeness score
-completeness_score_km = completeness_score(labels_pred_km, labels_true)
-print('Completeness score KMeans: {}'.format(completeness_score_km))
-
-# completeness score
-# completeness_score_em = completeness_score(labels_pred_em, labels_true)
-# print('Completeness score Expectation Maximization: {}\n'.format(completeness_score_em))
-
-# v measure score
-v_measure_score_km = v_measure_score(labels_pred_km, labels_true)
-print('V measure score KMeans: {}'.format(v_measure_score_km))
-
-# v measure score
-# v_measure_score_em = v_measure_score(labels_pred_em, labels_true)
-# print('V measure score Expectation Maximization: {}\n'.format(v_measure_score_em))
+    print(tabulate(results, headers=["Metric", "KMeans %"]))

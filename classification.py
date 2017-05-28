@@ -95,21 +95,21 @@ if __name__ == "__main__":
     # accuracy
     accuracy_nb = accuracy_score(test_target_lst, predicted_nb)
     accuracy_svm = accuracy_score(test_target_lst, predicted_svm)
-    results.append(["Accuracy", "{:.1f}%".format(accuracy_nb * 100), "{:.1f}%".format(accuracy_svm * 100)])
+    results.append(["Accuracy", "{:.1f}".format(accuracy_nb * 100), "{:.1f}".format(accuracy_svm * 100)])
 
     # precision
     precision_nb = precision_score(test_target_lst, predicted_nb, average='macro')
     precision_svm = precision_score(test_target_lst, predicted_svm, average='macro')
-    results.append(["Precision", "{:.1f}%".format(precision_nb * 100), "{:.1f}%".format(precision_svm * 100)])
+    results.append(["Precision", "{:.1f}".format(precision_nb * 100), "{:.1f}".format(precision_svm * 100)])
 
     # recall
     recall_nb = recall_score(test_target_lst, predicted_nb, average='macro')
     recall_svm = recall_score(test_target_lst, predicted_svm, average='macro')
-    results.append(["Recall", "{:.1f}%".format(recall_nb * 100), "{:.1f}%".format(recall_svm * 100)])
+    results.append(["Recall", "{:.1f}".format(recall_nb * 100), "{:.1f}".format(recall_svm * 100)])
 
     # F1 score
     f1_score_nb = f1_score(test_target_lst, predicted_nb, average='macro')
     f1_score_svm = f1_score(test_target_lst, predicted_svm, average='macro')
-    results.append(["F1 Score", "{:.1f}%".format(f1_score_nb * 100), "{:.1f}%".format(f1_score_svm * 100)])
+    results.append(["F1 Score", "{:.1f}".format(f1_score_nb * 100), "{:.1f}".format(f1_score_svm * 100)])
 
-    print(tabulate(results, headers=["Metric", "Naive Bayes", "SVM"]))
+    print(tabulate(results, headers=["Metric", "Naive Bayes %", "SVM %"]))
