@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics import adjusted_mutual_info_score
+from sklearn.metrics import f1_score
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import completeness_score
 from sklearn.metrics import homogeneity_score
@@ -84,34 +85,34 @@ if __name__ == "__main__":
         cluster_center_per_cat = np.append(cluster_center_per_cat, clust_km.cluster_centers_, axis=0)
 
     clust_km = KMeans(n_clusters=10, n_init=1, init=cluster_center_per_cat)
-    clust_km.fit(train_transformed)
+    cat_km = clust_km.fit_predict(train_transformed)
     t2 = time()
-    print("\nKMeans fit the data in {:.2f}s".format(t2 - t1))
-
-    cat_km = clust_km.predict(train_transformed)
-    t3 = time()
-    print("KMeans predicted the categories in {:.2f}s".format(t3 - t2))
+    print("\nKMeans fit the data and predicted the categories in {:.2f}s".format(t2 - t1))
 
     results = []
+    # F1 Score
+    f1_score_km = f1_score(cat_km, cat_true, average="micro")
+    results.append(["F1 Score", "{:.1f}".format(f1_score_km * 100)])
+
     # adjusted rand score
     adjusted_rand_score_km = adjusted_rand_score(cat_km, cat_true)
-    results.append(["Adjusted Rand Score KMeans", "{:.1f}".format(adjusted_rand_score_km * 100)])
+    results.append(["Adjusted Rand Score", "{:.1f}".format(adjusted_rand_score_km * 100)])
 
     # adjusted mutual info score
     adjusted_mutual_info_score_km = adjusted_mutual_info_score(cat_km, cat_true)
-    results.append(["Adjusted mutual info score KMeans", "{:.1f}".format(adjusted_mutual_info_score_km * 100)])
+    results.append(["Adjusted mutual info score", "{:.1f}".format(adjusted_mutual_info_score_km * 100)])
 
     # homogeneity score
     homogeneity_score_km = homogeneity_score(cat_km, cat_true)
-    results.append(["Homogeneity score KMeans", "{:.1f}".format(homogeneity_score_km * 100)])
+    results.append(["Homogeneity score", "{:.1f}".format(homogeneity_score_km * 100)])
 
     # completeness score
     completeness_score_km = completeness_score(cat_km, cat_true)
-    results.append(["Completeness score KMeans", "{:.1f}".format(completeness_score_km * 100)])
+    results.append(["Completeness score", "{:.1f}".format(completeness_score_km * 100)])
 
     # v measure score
     v_measure_score_km = v_measure_score(cat_km, cat_true)
-    results.append(["V measure score KMeans", "{:.1f}".format(v_measure_score_km * 100)])
+    results.append(["V measure score", "{:.1f}".format(v_measure_score_km * 100)])
 
     print()
     print(tabulate(results, headers=["Metric", "KMeans %"]))
